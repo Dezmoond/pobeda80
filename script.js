@@ -1,10 +1,12 @@
 const video = document.getElementById('video');
 const statusDiv = document.querySelector('.status');
+
 const audioMap = {
     'video1': 'audio/video1.mp3',
     'video2': 'audio/video2.mp3',
     'video3': 'audio/video3.mp3'
 };
+
 let currentAudio = null;
 let predictionBuffer = [];
 const CONFIDENCE_THRESHOLD = 0.99; // Порог уверенности
@@ -15,22 +17,34 @@ async function loadModel() {
     return await tf.loadLayersModel('./model/model.json');
 }
 
-// Функция захвата изображения с камеры
+// Функция настройки камеры на весь экран
 async function setupCamera() {
-    const stream = await navigator.mediaDevices.getUserMedia({
-        video: true
-    });
-    video.srcObject = stream;
+    const constraints = {
+        video: {
+            facingMode: 'environment',  // Камера заднего вида
+            width: { ideal: window.innerWidth },
+            height: { ideal: window.innerHeight }
+        },
+        audio: false
+    };
 
-    return new Promise(resolve => {
-        video.onloadedmetadata = () => resolve(video);
-    });
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        video.srcObject = stream;
+
+        return new Promise(resolve => {
+            video.onloadedmetadata = () => resolve(video);
+        });
+    } catch (err) {
+        alert('Ошибка доступа к камере. Пожалуйста, предоставьте разрешение.');
+        console.error('Ошибка доступа к камере:', err);
+    }
 }
 
 // Воспроизведение звука
 function playAudio(audioSrc) {
     if (currentAudio) {
-        currentAudio.pause(); // Остановить предыдущее аудио
+        currentAudio.pause();
     }
     currentAudio = new Audio(audioSrc);
     currentAudio.play();
@@ -49,17 +63,19 @@ async function run() {
         canvas.height = video.videoHeight;
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-        const input = tf.browser.fromPixels(canvas).resizeNearestNeighbor([224, 224]).toFloat().expandDims();
+        const input = tf.browser.fromPixels(canvas)
+            .resizeNearestNeighbor([224, 224])
+            .toFloat()
+            .expandDims();
+        
         const prediction = model.predict(input).dataSync();
 
-        const maxConfidence = Math.max(...prediction);  // Максимальная уверенность
-        const predictedClass = prediction.indexOf(maxConfidence);  // Класс с наибольшей уверенностью
+        const maxConfidence = Math.max(...prediction);
+        const predictedClass = prediction.indexOf(maxConfidence);
 
-        // Проверяем уверенность ≥ 99%
         if (maxConfidence >= CONFIDENCE_THRESHOLD) {
             predictionBuffer.push(predictedClass);
 
-            // Проверяем, есть ли в буфере 5 одинаковых предсказаний подряд
             if (predictionBuffer.length >= BUFFER_SIZE) {
                 const consistentPrediction = predictionBuffer.slice(-BUFFER_SIZE);
                 if (consistentPrediction.every(p => p === predictedClass)) {
@@ -69,7 +85,7 @@ async function run() {
                 }
             }
         } else {
-            predictionBuffer = []; // Сбрасываем буфер, если уверенность ниже порога
+            predictionBuffer = []; // Сброс буфера при низкой уверенности
         }
     }, 1000); // Проверка каждые 1 секунду
 }
