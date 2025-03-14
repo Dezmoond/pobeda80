@@ -9,38 +9,54 @@ const audioMap = {
 
 let currentAudio = null;
 let predictionBuffer = [];
-const CONFIDENCE_THRESHOLD = 0.99; // Порог уверенности
-const BUFFER_SIZE = 5;             // Количество одинаковых предсказаний подряд
+const CONFIDENCE_THRESHOLD = 0.99;
+const BUFFER_SIZE = 5;
 
-// Функция загрузки модели
+// Загрузка модели
 async function loadModel() {
     return await tf.loadLayersModel('./model/model.json');
 }
 
-// Функция настройки камеры на весь экран
+// Запрос разрешения и выбор камеры
 async function setupCamera() {
-    const constraints = {
-        video: {
-            facingMode: 'environment',  // Камера заднего вида
-            width: { ideal: window.innerWidth },
-            height: { ideal: window.innerHeight }
-        },
-        audio: false
-    };
-
     try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = devices.filter(device => device.kind === 'videoinput');
+
+        if (videoDevices.length === 0) {
+            alert('Камера не найдена');
+            return;
+        }
+
+        // Выбор устройства камеры
+        const selectedDeviceId = videoDevices.length === 1
+            ? videoDevices[0].deviceId // Если одна камера — берём её
+            : videoDevices[videoDevices.length - 1].deviceId; // Если несколько, берем последнюю (обычно задняя камера)
+
+        const constraints = {
+            video: {
+                deviceId: { exact: selectedDeviceId },
+                facingMode: { ideal: 'environment' }, // Предпочтение для задней камеры
+                width: { ideal: window.innerWidth },
+                height: { ideal: window.innerHeight }
+            },
+            audio: false
+        };
+
         const stream = await navigator.mediaDevices.getUserMedia(constraints);
         video.srcObject = stream;
 
         return new Promise(resolve => {
             video.onloadedmetadata = () => {
-                video.play();  // Начать воспроизведение видео
+                video.play();
                 resolve(video);
             };
         });
-    } catch (err) {
-        alert('Ошибка доступа к камере. Пожалуйста, предоставьте разрешение.');
-        console.error('Ошибка доступа к камере:', err);
+
+    } catch (error) {
+        alert("Ошибка доступа к камере. Пожалуйста, разрешите доступ.");
+        console.error("Ошибка доступа к камере:", error);
+        statusDiv.textContent = "❌ Камера не доступна.";
     }
 }
 
@@ -83,12 +99,13 @@ async function run() {
                 const consistentPrediction = predictionBuffer.slice(-BUFFER_SIZE);
                 if (consistentPrediction.every(p => p === predictedClass)) {
                     const videoName = `video${predictedClass + 1}`;
-                    statusDiv.textContent = `Обнаружено: ${videoName} (уверенность: ${Math.round(maxConfidence * 100)}%)`;
+                    statusDiv.textContent = `✅ Обнаружено: ${videoName} (уверенность: ${Math.round(maxConfidence * 100)}%)`;
                     playAudio(audioMap[videoName]);
                 }
             }
         } else {
-            predictionBuffer = []; // Сброс буфера при низкой уверенности
+            predictionBuffer = [];
+            statusDiv.textContent = "🔍 Идентификация...";
         }
     }, 1000); // Проверка каждые 1 секунду
 }
