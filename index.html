@@ -3,49 +3,138 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Запуск камеры</title>
+    <title>Запуск камеры с выбором</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+        }
+        video {
+            width: 100%;
+            height: auto;
+            border: 1px solid black;
+        }
+        canvas {
+            display: none;
+        }
+        img {
+            margin-top: 20px;
+            width: 100%;
+            max-width: 400px;
+        }
+    </style>
 </head>
 <body>
-    <h1>Включение камеры в браузере1</h1>
-    <video id="video" autoplay playsinline width="640" height="480"></video>
+    <h1>Запуск камеры с выбором</h1>
+    <div>
+        <video id="video" autoplay playsinline></video>
+        <button id="startbutton">Сделать фото</button>
+        <br>
+        <label for="cameraSelect">Выберите камеру:</label>
+        <select id="cameraSelect"></select>
+    </div>
+    <canvas id="canvas"></canvas>
+    <div>
+        <img id="photo" alt="Captured photo will appear here">
+    </div>
 
     <script>
-        // Функция для запроса доступа к камере
-        async function startCamera() {
-            try {
-                // Получаем список всех устройств
+        (function() {
+            var width = 320;    // Photo width
+            var height = 0;     // Will be calculated based on aspect ratio
+
+            var streaming = false;
+
+            var video = null;
+            var canvas = null;
+            var photo = null;
+            var startbutton = null;
+            var cameraSelect = null;
+
+            async function startup() {
+                video = document.getElementById('video');
+                canvas = document.getElementById('canvas');
+                photo = document.getElementById('photo');
+                startbutton = document.getElementById('startbutton');
+                cameraSelect = document.getElementById('cameraSelect');
+
+                // Получаем список всех видеоустройств
                 const devices = await navigator.mediaDevices.enumerateDevices();
-                // Ищем видеоустройства
                 const videoDevices = devices.filter(device => device.kind === 'videoinput');
 
                 if (videoDevices.length === 0) {
-                    alert('Камера не найдена');
+                    alert('Камеры не найдены');
                     return;
                 }
 
-                // Находим заднюю камеру, если она есть
-                const rearCamera = videoDevices.find(device => device.facing === 'environment');
-
-                // Если задняя камера найдена, выбираем её, иначе выбираем первое доступное видеоустройство
-                const selectedDeviceId = rearCamera ? rearCamera.deviceId : videoDevices[0].deviceId;
-
-                // Запрашиваем разрешение на использование выбранной камеры
-                const stream = await navigator.mediaDevices.getUserMedia({
-                    video: { deviceId: { exact: selectedDeviceId } }
+                // Заполняем селектор камерами
+                videoDevices.forEach(device => {
+                    const option = document.createElement('option');
+                    option.value = device.deviceId;
+                    option.text = device.label || `Камера ${cameraSelect.length + 1}`;
+                    cameraSelect.appendChild(option);
                 });
 
-                // Привязываем полученный поток видео к элементу <video>
-                const videoElement = document.getElementById('video');
-                videoElement.srcObject = stream;
+                // Выбираем первую камеру по умолчанию
+                const selectedDeviceId = videoDevices[0].deviceId;
+                await startCamera(selectedDeviceId);
 
-            } catch (error) {
-                console.error('Ошибка доступа к камере:', error);
-                alert('Не удалось получить доступ к камере. Пожалуйста, разрешите доступ.');
+                // Слушаем изменение выбора камеры
+                cameraSelect.addEventListener('change', function() {
+                    const selectedDeviceId = cameraSelect.value;
+                    startCamera(selectedDeviceId);
+                });
+
+                startbutton.addEventListener('click', function(ev){
+                    takepicture();
+                    ev.preventDefault();
+                }, false);
+
+                clearphoto();
             }
-        }
 
-        // Запускаем камеру при загрузке страницы
-        window.onload = startCamera;
+            async function startCamera(deviceId) {
+                try {
+                    // Запрашиваем доступ к выбранной камере
+                    const stream = await navigator.mediaDevices.getUserMedia({
+                        video: { deviceId: { exact: deviceId } }
+                    });
+
+                    // Привязываем поток к видео элементу
+                    video.srcObject = stream;
+                    video.play();
+
+                } catch (error) {
+                    console.error('Ошибка доступа к камере:', error);
+                    alert('Не удалось получить доступ к камере.');
+                }
+            }
+
+            function clearphoto() {
+                var context = canvas.getContext('2d');
+                context.fillStyle = "#AAA";
+                context.fillRect(0, 0, canvas.width, canvas.height);
+
+                var data = canvas.toDataURL('image/png');
+                photo.setAttribute('src', data);
+            }
+
+            function takepicture() {
+                var context = canvas.getContext('2d');
+                if (width && height) {
+                    canvas.width = width;
+                    canvas.height = height;
+                    context.drawImage(video, 0, 0, width, height);
+
+                    var data = canvas.toDataURL('image/png');
+                    photo.setAttribute('src', data);
+                } else {
+                    clearphoto();
+                }
+            }
+
+            window.addEventListener('load', startup, false);
+        })();
     </script>
 </body>
 </html>
