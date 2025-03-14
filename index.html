@@ -3,44 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Классификация видео</title>
-    <style>
-        body, html {
-            margin: 0;
-            padding: 0;
-            height: 100vh;
-            width: 100vw;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            background-color: #000;
-            color: #fff;
-            overflow: hidden;
-        }
-
-        #video {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            object-fit: cover;
-            z-index: -1;
-        }
-
-        .status {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            font-size: 20px;
-        }
-    </style>
+    <title>Запуск камеры</title>
 </head>
 <body>
-    <video id="video" autoplay playsinline></video>
-    <div class="status">🔍 Идентификация...</div>
+    <h1>Включение камеры в браузере</h1>
+    <video id="video" autoplay playsinline width="640" height="480"></video>
 
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
-    <script src="./script.js"></script>
+    <script>
+        // Функция для запроса доступа к камере
+        async function startCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                // Привязываем полученный поток видео к элементу <video>
+                const videoElement = document.getElementById('video');
+                videoElement.srcObject = stream;
+            } catch (error) {
+                console.error('Ошибка доступа к камере:', error);
+                alert('Не удалось получить доступ к камере. Пожалуйста, разрешите доступ.');
+            }
+        }
+
+        // Запускаем камеру при загрузке страницы
+        window.onload = startCamera;
+    </script>
 </body>
 </html>
