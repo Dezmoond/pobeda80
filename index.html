@@ -13,10 +13,31 @@
         // Функция для запроса доступа к камере
         async function startCamera() {
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                // Получаем список всех устройств
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                // Ищем видеоустройства
+                const videoDevices = devices.filter(device => device.kind === 'videoinput');
+
+                if (videoDevices.length === 0) {
+                    alert('Камера не найдена');
+                    return;
+                }
+
+                // Находим заднюю камеру, если она есть
+                const rearCamera = videoDevices.find(device => device.facing === 'environment');
+
+                // Если задняя камера найдена, выбираем её, иначе выбираем первое доступное видеоустройство
+                const selectedDeviceId = rearCamera ? rearCamera.deviceId : videoDevices[0].deviceId;
+
+                // Запрашиваем разрешение на использование выбранной камеры
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { deviceId: { exact: selectedDeviceId } }
+                });
+
                 // Привязываем полученный поток видео к элементу <video>
                 const videoElement = document.getElementById('video');
                 videoElement.srcObject = stream;
+
             } catch (error) {
                 console.error('Ошибка доступа к камере:', error);
                 alert('Не удалось получить доступ к камере. Пожалуйста, разрешите доступ.');
