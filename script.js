@@ -33,7 +33,10 @@ async function setupCamera() {
         video.srcObject = stream;
 
         return new Promise(resolve => {
-            video.onloadedmetadata = () => resolve(video);
+            video.onloadedmetadata = () => {
+                video.play();  // Начать воспроизведение видео
+                resolve(video);
+            };
         });
     } catch (err) {
         alert('Ошибка доступа к камере. Пожалуйста, предоставьте разрешение.');
