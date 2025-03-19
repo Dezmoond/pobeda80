@@ -3,26 +3,113 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Камера + AI</title>
+    <title>Запуск камеры с выбором</title>
     <style>
-        body { font-family: Arial, sans-serif; text-align: center; }
-        video { width: 100%; max-width: 500px; border: 2px solid black; }
-        canvas { display: none; }
-        img { margin-top: 10px; width: 100%; max-width: 300px; }
-        #status { font-size: 20px; margin-top: 10px; }
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+        }
+        video {
+            width: 100%;
+            height: auto;
+            border: 1px solid black;
+        }
+        canvas {
+            display: none;
+        }
+        img {
+            margin-top: 20px;
+            width: 100%;
+            max-width: 400px;
+        }
     </style>
 </head>
 <body>
-    <h1>Камера + AI Распознавание</h1>
+    <h1>Запуск камеры с выбором</h1>
+    <div>
+        <video id="video" autoplay playsinline></video>
+        <button id="startbutton">Сделать фото</button>
+        <br>
+        <label for="cameraSelect">Выберите камеру:</label>
+        <select id="cameraSelect"></select>
+    </div>
+    <canvas id="canvas"></canvas>
+    <div>
+        <img id="photo" alt="Captured photo will appear here">
+    </div>
 
-    <label for="cameraSelect">Выберите камеру:</label>
-    <select id="cameraSelect"></select>
-    <br><br>
+    <script>
+        (async function() {
+            let video = document.getElementById('video');
+            let canvas = document.getElementById('canvas');
+            let photo = document.getElementById('photo');
+            let startbutton = document.getElementById('startbutton');
+            let cameraSelect = document.getElementById('cameraSelect');
 
-    <video id="video" autoplay playsinline></video>
-    <div id="status">🔍 Ожидание...</div>
+            async function getCameras() {
+                try {
+                    const devices = await navigator.mediaDevices.enumerateDevices();
+                    return devices.filter(device => device.kind === 'videoinput');
+                } catch (error) {
+                    console.error('Ошибка получения списка камер:', error);
+                    alert('Ошибка доступа к устройствам.');
+                    return [];
+                }
+            }
 
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
-    <script src="script.js"></script>
+            async function startCamera(deviceId) {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({
+                        video: { deviceId: { exact: deviceId } }
+                    });
+                    video.srcObject = stream;
+                } catch (error) {
+                    console.error('Ошибка доступа к камере:', error);
+                    alert('Не удалось получить доступ к камере.');
+                }
+            }
+
+            async function setupCameras() {
+                const videoDevices = await getCameras();
+                if (videoDevices.length === 0) {
+                    alert('Камеры не найдены');
+                    return;
+                }
+
+                cameraSelect.innerHTML = '';
+                videoDevices.forEach(device => {
+                    const option = document.createElement('option');
+                    option.value = device.deviceId;
+                    option.text = device.label || `Камера ${cameraSelect.length + 1}`;
+                    cameraSelect.appendChild(option);
+                });
+
+                cameraSelect.addEventListener('change', () => startCamera(cameraSelect.value));
+
+                await startCamera(videoDevices[0].deviceId);
+            }
+
+            function takePicture() {
+                if (!video.videoWidth || !video.videoHeight) {
+                    console.error('Ошибка: видео не загружено');
+                    return;
+                }
+
+                const width = video.videoWidth;
+                const height = video.videoHeight;
+
+                canvas.width = width;
+                canvas.height = height;
+
+                const context = canvas.getContext('2d');
+                context.drawImage(video, 0, 0, width, height);
+
+                photo.src = canvas.toDataURL('image/png');
+            }
+
+            startbutton.addEventListener('click', takePicture);
+            window.addEventListener('load', setupCameras);
+        })();
+    </script>
 </body>
 </html>
