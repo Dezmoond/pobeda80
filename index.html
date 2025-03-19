@@ -5,23 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Запуск камеры с выбором</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            text-align: center;
-        }
-        video {
-            width: 100%;
-            height: auto;
-            border: 1px solid black;
-        }
-        canvas {
-            display: none;
-        }
-        img {
-            margin-top: 20px;
-            width: 100%;
-            max-width: 400px;
-        }
+        body { font-family: Arial, sans-serif; text-align: center; }
+        video { width: 100%; height: auto; border: 1px solid black; }
+        canvas { display: none; }
+        img { margin-top: 20px; width: 100%; max-width: 400px; }
     </style>
 </head>
 <body>
@@ -37,104 +24,6 @@
     <div>
         <img id="photo" alt="Captured photo will appear here">
     </div>
-
-    <script>
-        (function() {
-            var width = 320;    // Photo width
-            var height = 0;     // Will be calculated based on aspect ratio
-
-            var streaming = false;
-
-            var video = null;
-            var canvas = null;
-            var photo = null;
-            var startbutton = null;
-            var cameraSelect = null;
-
-            async function startup() {
-                video = document.getElementById('video');
-                canvas = document.getElementById('canvas');
-                photo = document.getElementById('photo');
-                startbutton = document.getElementById('startbutton');
-                cameraSelect = document.getElementById('cameraSelect');
-
-                // Получаем список всех видеоустройств
-                const devices = await navigator.mediaDevices.enumerateDevices();
-                const videoDevices = devices.filter(device => device.kind === 'videoinput');
-
-                if (videoDevices.length === 0) {
-                    alert('Камеры не найдены');
-                    return;
-                }
-
-                // Заполняем селектор камерами
-                videoDevices.forEach(device => {
-                    const option = document.createElement('option');
-                    option.value = device.deviceId;
-                    option.text = device.label || `Камера ${cameraSelect.length + 1}`;
-                    cameraSelect.appendChild(option);
-                });
-
-                // Выбираем первую камеру по умолчанию
-                const selectedDeviceId = videoDevices[0].deviceId;
-                await startCamera(selectedDeviceId);
-
-                // Слушаем изменение выбора камеры
-                cameraSelect.addEventListener('change', function() {
-                    const selectedDeviceId = cameraSelect.value;
-                    startCamera(selectedDeviceId);
-                });
-
-                startbutton.addEventListener('click', function(ev){
-                    takepicture();
-                    ev.preventDefault();
-                }, false);
-
-                clearphoto();
-            }
-
-            async function startCamera(deviceId) {
-                try {
-                    // Запрашиваем доступ к выбранной камере
-                    const stream = await navigator.mediaDevices.getUserMedia({
-                        video: { deviceId: { exact: deviceId } }
-                    });
-
-                    // Привязываем поток к видео элементу
-                    video.srcObject = stream;
-                    video.play();
-
-                } catch (error) {
-                    console.error('Ошибка доступа к камере:', error);
-                    alert('Не удалось получить доступ к камере.');
-                }
-            }
-
-            function clearphoto() {
-                var context = canvas.getContext('2d');
-                context.fillStyle = "#AAA";
-                context.fillRect(0, 0, canvas.width, canvas.height);
-
-                var data = canvas.toDataURL('image/png');
-                photo.setAttribute('src', data);
-            }
-
-            function takepicture() {
-                var context = canvas.getContext('2d');
-                if (width && height) {
-                    canvas.width = width;
-                    canvas.height = height;
-                    context.drawImage(video, 0, 0, width, height);
-
-                    var data = canvas.toDataURL('image/png');
-                    photo.setAttribute('src', data);
-                } else {
-                    clearphoto();
-                }
-            }
-
-            window.addEventListener('load', startup, false);
-        })();
-    </script>
+    <script src="script.js"></script>
 </body>
 </html>
