@@ -1,5 +1,6 @@
 const video = document.getElementById('video');
-const statusDiv = document.querySelector('.status');
+const statusDiv = document.createElement('div');
+document.body.appendChild(statusDiv);
 
 const audioMap = {
     'video1': 'audio/video1.mp3',
@@ -28,35 +29,41 @@ async function setupCamera() {
             return;
         }
 
-        // Выбор устройства камеры
-        const selectedDeviceId = videoDevices.length === 1
-            ? videoDevices[0].deviceId // Если одна камера — берём её
-            : videoDevices[videoDevices.length - 1].deviceId; // Если несколько, берем последнюю (обычно задняя камера)
+        const cameraSelect = document.getElementById('cameraSelect');
+        cameraSelect.innerHTML = '';
 
-        const constraints = {
-            video: {
-                deviceId: { exact: selectedDeviceId },
-                facingMode: { ideal: 'environment' }, // Предпочтение для задней камеры
-                width: { ideal: window.innerWidth },
-                height: { ideal: window.innerHeight }
-            },
-            audio: false
-        };
-
-        const stream = await navigator.mediaDevices.getUserMedia(constraints);
-        video.srcObject = stream;
-
-        return new Promise(resolve => {
-            video.onloadedmetadata = () => {
-                video.play();
-                resolve(video);
-            };
+        videoDevices.forEach(device => {
+            const option = document.createElement('option');
+            option.value = device.deviceId;
+            option.text = device.label || `Камера ${cameraSelect.length + 1}`;
+            cameraSelect.appendChild(option);
         });
+
+        cameraSelect.addEventListener('change', () => {
+            startCamera(cameraSelect.value);
+        });
+
+        // Выбираем первую камеру по умолчанию
+        await startCamera(videoDevices[0].deviceId);
 
     } catch (error) {
         alert("Ошибка доступа к камере. Пожалуйста, разрешите доступ.");
         console.error("Ошибка доступа к камере:", error);
         statusDiv.textContent = "❌ Камера не доступна.";
+    }
+}
+
+async function startCamera(deviceId) {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+            video: { deviceId: { exact: deviceId } }
+        });
+
+        video.srcObject = stream;
+        video.play();
+    } catch (error) {
+        console.error('Ошибка доступа к камере:', error);
+        alert('Не удалось получить доступ к камере.');
     }
 }
 
@@ -85,6 +92,7 @@ async function run() {
         const input = tf.browser.fromPixels(canvas)
             .resizeNearestNeighbor([224, 224])
             .toFloat()
+            .div(tf.scalar(255)) // Нормализация
             .expandDims();
         
         const prediction = model.predict(input).dataSync();
@@ -107,7 +115,7 @@ async function run() {
             predictionBuffer = [];
             statusDiv.textContent = "🔍 Идентификация...";
         }
-    }, 1000); // Проверка каждые 1 секунду
+    }, 1000);
 }
 
 run();
