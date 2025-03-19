@@ -1,6 +1,6 @@
 const video = document.getElementById('video');
-const statusDiv = document.createElement('div');
-document.body.appendChild(statusDiv);
+const statusDiv = document.getElementById('status');
+const cameraSelect = document.getElementById('cameraSelect');
 
 const audioMap = {
     'video1': 'audio/video1.mp3',
@@ -13,73 +13,72 @@ let predictionBuffer = [];
 const CONFIDENCE_THRESHOLD = 0.99;
 const BUFFER_SIZE = 5;
 
-// Загрузка модели
+// ✅ Загрузка модели
 async function loadModel() {
     return await tf.loadLayersModel('./model/model.json');
 }
 
-// Запрос разрешения и выбор камеры
-async function setupCamera() {
+// ✅ Получение списка камер
+async function getCameras() {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    return devices.filter(device => device.kind === 'videoinput');
+}
+
+// ✅ Запуск камеры
+async function setupCamera(deviceId) {
     try {
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const videoDevices = devices.filter(device => device.kind === 'videoinput');
+        const constraints = {
+            video: deviceId ? { deviceId: { exact: deviceId } } : true
+        };
 
-        if (videoDevices.length === 0) {
-            alert('Камера не найдена');
-            return;
-        }
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        video.srcObject = stream;
 
-        const cameraSelect = document.getElementById('cameraSelect');
-        cameraSelect.innerHTML = '';
-
-        videoDevices.forEach(device => {
-            const option = document.createElement('option');
-            option.value = device.deviceId;
-            option.text = device.label || `Камера ${cameraSelect.length + 1}`;
-            cameraSelect.appendChild(option);
+        return new Promise(resolve => {
+            video.onloadedmetadata = () => {
+                video.play();
+                resolve(video);
+            };
         });
-
-        cameraSelect.addEventListener('change', () => {
-            startCamera(cameraSelect.value);
-        });
-
-        // Выбираем первую камеру по умолчанию
-        await startCamera(videoDevices[0].deviceId);
-
     } catch (error) {
-        alert("Ошибка доступа к камере. Пожалуйста, разрешите доступ.");
-        console.error("Ошибка доступа к камере:", error);
+        alert("Ошибка доступа к камере. Разрешите использование камеры.");
+        console.error("Ошибка:", error);
         statusDiv.textContent = "❌ Камера не доступна.";
     }
 }
 
-async function startCamera(deviceId) {
-    try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-            video: { deviceId: { exact: deviceId } }
-        });
-
-        video.srcObject = stream;
-        video.play();
-    } catch (error) {
-        console.error('Ошибка доступа к камере:', error);
-        alert('Не удалось получить доступ к камере.');
+// ✅ Инициализация камер
+async function initCameraSelection() {
+    const cameras = await getCameras();
+    if (cameras.length === 0) {
+        alert("Камеры не найдены.");
+        return;
     }
+
+    cameraSelect.innerHTML = "";
+    cameras.forEach(camera => {
+        const option = document.createElement('option');
+        option.value = camera.deviceId;
+        option.textContent = camera.label || `Камера ${cameraSelect.length + 1}`;
+        cameraSelect.appendChild(option);
+    });
+
+    cameraSelect.addEventListener('change', () => setupCamera(cameraSelect.value));
+
+    await setupCamera(cameras[0].deviceId);
 }
 
-// Воспроизведение звука
+// ✅ Воспроизведение звука
 function playAudio(audioSrc) {
-    if (currentAudio) {
-        currentAudio.pause();
-    }
+    if (currentAudio) currentAudio.pause();
     currentAudio = new Audio(audioSrc);
     currentAudio.play();
 }
 
-// Основной процесс классификации
+// ✅ Основной процесс классификации
 async function run() {
     const model = await loadModel();
-    await setupCamera();
+    await initCameraSelection();
 
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
@@ -92,7 +91,6 @@ async function run() {
         const input = tf.browser.fromPixels(canvas)
             .resizeNearestNeighbor([224, 224])
             .toFloat()
-            .div(tf.scalar(255)) // Нормализация
             .expandDims();
         
         const prediction = model.predict(input).dataSync();
