@@ -38,7 +38,7 @@
     async function loadModel() {
       try {
         console.log("Loading model...");
-        model = await tf.loadGraphModel('/model/model.json');
+        model = await tf.loadGraphModel('https://dezmoond.github.io/pobeda80/model/model.json');
         console.log('Model loaded:', model);
         // Убираем строку с попыткой разблокировать несуществующую кнопку
       } catch (error) {
