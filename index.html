@@ -1,115 +1,140 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Запуск камеры с выбором</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            text-align: center;
-        }
-        video {
-            width: 100%;
-            height: auto;
-            border: 1px solid black;
-        }
-        canvas {
-            display: none;
-        }
-        img {
-            margin-top: 20px;
-            width: 100%;
-            max-width: 400px;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Video Classifier</title>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+  <style>
+    #videoElement {
+      width: 100%;
+      height: auto;
+    }
+    #message {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      font-size: 24px;
+      color: white;
+      background: rgba(0, 0, 0, 0.5);
+      padding: 10px;
+    }
+  </style>
 </head>
 <body>
-    <h1>Запуск камеры с выбором</h1>
-    <div>
-        <video id="video" autoplay playsinline></video>
-        <button id="startbutton">Сделать фото</button>
-        <br>
-        <label for="cameraSelect">Выберите камеру:</label>
-        <select id="cameraSelect"></select>
-    </div>
-    <canvas id="canvas"></canvas>
-    <div>
-        <img id="photo" alt="Captured photo will appear here">
-    </div>
 
-    <script>
-        (async function() {
-            let video = document.getElementById('video');
-            let canvas = document.getElementById('canvas');
-            let photo = document.getElementById('photo');
-            let startbutton = document.getElementById('startbutton');
-            let cameraSelect = document.getElementById('cameraSelect');
+  <h1>Real-Time Video Classification</h1>
 
-            async function getCameras() {
-                try {
-                    const devices = await navigator.mediaDevices.enumerateDevices();
-                    return devices.filter(device => device.kind === 'videoinput');
-                } catch (error) {
-                    console.error('Ошибка получения списка камер:', error);
-                    alert('Ошибка доступа к устройствам.');
-                    return [];
-                }
-            }
+  <video id="videoElement" autoplay></video>
+  <div id="message">Loading...</div>
 
-            async function startCamera(deviceId) {
-                try {
-                    const stream = await navigator.mediaDevices.getUserMedia({
-                        video: { deviceId: { exact: deviceId } }
-                    });
-                    video.srcObject = stream;
-                } catch (error) {
-                    console.error('Ошибка доступа к камере:', error);
-                    alert('Не удалось получить доступ к камере.');
-                }
-            }
+  <script>
+    let model;
+    let videoElement = document.getElementById('videoElement');
+    let message = document.getElementById('message');
+    let frameCount = 0; // Счетчик кадров
 
-            async function setupCameras() {
-                const videoDevices = await getCameras();
-                if (videoDevices.length === 0) {
-                    alert('Камеры не найдены');
-                    return;
-                }
+    // Загрузка модели
+    async function loadModel() {
+      try {
+        console.log("Loading model...");
+        model = await tf.loadGraphModel('/pobeda80-main/model/model.json');
+        console.log('Model loaded:', model);
+        // Убираем строку с попыткой разблокировать несуществующую кнопку
+      } catch (error) {
+        console.error('Error loading model:', error);
+      }
+    }
 
-                cameraSelect.innerHTML = '';
-                videoDevices.forEach(device => {
-                    const option = document.createElement('option');
-                    option.value = device.deviceId;
-                    option.text = device.label || `Камера ${cameraSelect.length + 1}`;
-                    cameraSelect.appendChild(option);
-                });
+    // Получение доступа к камере
+    async function setupCamera() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        videoElement.srcObject = stream;
+        videoElement.onloadedmetadata = () => {
+          videoElement.play();
+          classifyFrame();  // Начинаем классификацию после того, как видео начнет проигрываться
+        };
+      } catch (error) {
+        console.error("Ошибка доступа к камере:", error);
+        message.innerHTML = 'Camera Access Error!';
+      }
+    }
 
-                cameraSelect.addEventListener('change', () => startCamera(cameraSelect.value));
+    // Функция для разделения изображения на патчи
+    function getPatches(tensor, patchSize = 224) {
+      const patches = [];
+      const height = tensor.shape[0];
+      const width = tensor.shape[1];
 
-                await startCamera(videoDevices[0].deviceId);
-            }
+      for (let y = 0; y < height - patchSize + 1; y += patchSize) {
+        for (let x = 0; x < width - patchSize + 1; x += patchSize) {
+          const patch = tensor.slice([y, x, 0], [patchSize, patchSize, 3]); // Берем патч
+          patches.push(patch);
+        }
+      }
+      return patches;
+    }
 
-            function takePicture() {
-                if (!video.videoWidth || !video.videoHeight) {
-                    console.error('Ошибка: видео не загружено');
-                    return;
-                }
+    // Классификация кадра
+    async function classifyFrame() {
+      if (!model) {
+        console.error("Модель не загружена");
+        return;
+      }
 
-                const width = video.videoWidth;
-                const height = video.videoHeight;
+      try {
+        // Получаем кадр из видео
+        const tensor = tf.browser.fromPixels(videoElement);
 
-                canvas.width = width;
-                canvas.height = height;
+        // Преобразуем размер изображения (до 224x224)
+        const resized = tf.image.resizeBilinear(tensor, [224, 224]);
 
-                const context = canvas.getContext('2d');
-                context.drawImage(video, 0, 0, width, height);
+        // Нормализуем изображение
+        const normalized = resized.toFloat().div(tf.scalar(255));
 
-                photo.src = canvas.toDataURL('image/png');
-            }
+        // Получаем патчи (для кадра одного изображения, можно обрабатывать и патчи)
+        const patches = getPatches(normalized);
 
-            startbutton.addEventListener('click', takePicture);
-            window.addEventListener('load', setupCameras);
-        })();
-    </script>
+        // Предсказания для каждого патча
+        const predictions = await Promise.all(patches.map(async (patch) => {
+          const input = patch.expandDims(0); // Добавляем размерность для батча
+          const prediction = model.predict(input);
+          return prediction.argMax(-1).dataSync()[0];  // Получаем класс
+        }));
+
+        // Для простоты: выводим класс с наибольшим количеством голосов среди патчей
+        const classCounts = {};
+        predictions.forEach((pred) => {
+          classCounts[pred] = (classCounts[pred] || 0) + 1;
+        });
+
+        const predictedClass = Object.keys(classCounts).reduce((a, b) => classCounts[a] > classCounts[b] ? a : b);
+
+        message.innerHTML = `Predicted Class: ${predictedClass}`;
+
+        // Очистка памяти
+        tensor.dispose();
+        resized.dispose();
+        normalized.dispose();
+        patches.forEach(patch => patch.dispose());
+      } catch (error) {
+        console.error("Ошибка предсказания:", error);
+        message.innerHTML = 'Prediction Error!';
+      }
+
+      // Запускаем следующий кадр
+      requestAnimationFrame(classifyFrame);
+    }
+
+    // Запуск
+    async function start() {
+      await loadModel();
+      await setupCamera();
+    }
+
+    start();
+  </script>
+
 </body>
 </html>
